@@ -422,6 +422,13 @@ poweroff_and_exit() {
     exit "$rc"
 }
 
+# Channel exit code to the host.
+write_virtme_ret() {
+    if [ -e /dev/virtio-ports/virtme.ret ]; then
+        echo "$1" > /dev/virtio-ports/virtme.ret
+    fi
+}
+
 # Run the user script. Returns 1 if script I/O ports are missing (caller may use console fallback).
 # Does not return when ports exist (runs script and poweroff).
 run_user_script() {
@@ -475,10 +482,7 @@ run_user_script() {
     ret=$?
     log "script returned {$ret}"
 
-    # Channel exit code to the host.
-    if [ -e /dev/virtio-ports/virtme.ret ]; then
-        echo ${ret} > /dev/virtio-ports/virtme.ret
-    fi
+    write_virtme_ret "$ret"
 
     poweroff_and_exit 0
 }
@@ -500,9 +504,7 @@ run_user_script_on_console() {
     ret=$?
     log "script returned {$ret}"
 
-    if [ -e /dev/virtio-ports/virtme.ret ]; then
-        echo "$ret" > /dev/virtio-ports/virtme.ret
-    fi
+    write_virtme_ret "$ret"
     poweroff_and_exit 0
 }
 
