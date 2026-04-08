@@ -423,6 +423,14 @@ virtme-ng is based on virtme, written by Andy Lutomirski <luto@kernel.org>.
     )
 
     parser.add_argument(
+        "--post-init",
+        action="store",
+        help="Shell command to run inside the guest after initialization "
+        "completes, before the user shell or --exec runs. Stdout/stderr go "
+        "to the console; a non-zero exit aborts boot.",
+    )
+
+    parser.add_argument(
         "--append",
         "-a",
         action="append",
@@ -933,6 +941,13 @@ class KernelSource:
         else:
             self.virtme_param["exec"] = ""
 
+        if args.post_init:
+            self.virtme_param["post_init"] = (
+                f"--post-init {shlex.quote(args.post_init)}"
+            )
+        else:
+            self.virtme_param["post_init"] = ""
+
     def _get_virtme_user(self, args):
         # Default user for scripts is root, default user for interactive
         # sessions is current user.
@@ -1418,6 +1433,7 @@ class KernelSource:
             "virtme-run "
             + f"{self.virtme_param['name']} "
             + f"{self.virtme_param['exec']} "
+            + f"{self.virtme_param['post_init']} "
             + f"{self.virtme_param['user']} "
             + f"{self.virtme_param['shell']} "
             + f"{self.virtme_param['arch']} "

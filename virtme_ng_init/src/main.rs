@@ -929,6 +929,40 @@ fn run_user_script_on_console(consdev: &str, uid: u32) {
     poweroff();
 }
 
+fn run_postinit_hook(consdev: &str) {
+    let hook_cmd = match read_cmdline_value("virtme.postinit=`") {
+        Some(c) => c,
+        None => return,
+    };
+    let tty = OpenOptions::new()
+        .read(true)
+        .write(true)
+        .open(consdev)
+        .expect("failed to open console for post-init hook");
+    log!("starting post-init hook");
+    let mut command = Command::new("/bin/sh");
+    command.args(["-c", hook_cmd.as_str()]);
+    let tty_fd = tty.as_raw_fd();
+    unsafe {
+        command.pre_exec(move || {
+            libc::dup2(tty_fd, libc::STDIN_FILENO);
+            libc::dup2(tty_fd, libc::STDOUT_FILENO);
+            libc::dup2(tty_fd, libc::STDERR_FILENO);
+            Ok(())
+        });
+    }
+    let exit_code = command
+        .status()
+        .expect("failed to spawn post-init hook")
+        .code()
+        .unwrap_or(-1);
+    log!("post-init hook returned {}", exit_code);
+    if exit_code != 0 {
+        write_virtme_ret(Some(exit_code));
+        poweroff();
+    }
+}
+
 /// Returns true if we are in script mode but could not run the script (script I/O ports missing).
 /// Caller should then run the script on the console and poweroff.
 fn setup_user_script(uid: u32) -> bool {
@@ -1142,6 +1176,8 @@ fn setup_user_session() {
         log!("failed to exec /bin/sh: {}", err);
         return;
     };
+
+    run_postinit_hook(consdev.as_str());
 
     if setup_user_script(uid) {
         // Script mode but script I/O ports were missing; run script on console and exit.

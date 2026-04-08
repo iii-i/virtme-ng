@@ -262,6 +262,14 @@ def make_parser() -> argparse.ArgumentParser:
         metavar="BINARY",
         help="[Deprecated] use --script-sh instead.",
     )
+    g.add_argument(
+        "--post-init",
+        action="store",
+        metavar="SHELL_COMMAND",
+        help="Shell command to run inside the guest after initialization "
+        "completes, before the user shell or --script-sh runs. "
+        "Stdout/stderr go to the console; a non-zero exit aborts boot.",
+    )
 
     g = parser.add_argument_group(
         title="Architecture", description="Options related to architecture selection"
@@ -1949,6 +1957,9 @@ def do_it() -> int:
             show_boot_console=args.show_boot_console,
         )
 
+    if args.post_init is not None:
+        provision_ret_path()
+
     if args.graphics is not None and args.nvgpu is None:
         video_args = arch.qemu_display_args()
         if video_args:
@@ -2044,6 +2055,10 @@ def do_it() -> int:
 
     if args.shell is not None:
         kernelargs.append(f"virtme_shell={args.shell}")
+
+    if args.post_init is not None:
+        post_init_cmd = b64encode(args.post_init.encode("utf-8")).decode("utf-8")
+        kernelargs.append(f"virtme.postinit=`{post_init_cmd}`")
 
     if args.nvgpu:
         qemuargs.extend(["-device", args.nvgpu])

@@ -342,6 +342,15 @@ Examples
    Linux version 6.7.0-060700rc5-generic (kernel@kathleen) (x86_64-linux-gnu-gcc-13 (Ubuntu 13.2.0-7ubuntu1) 13.2.0, GNU ld (GNU Binutils for Ubuntu) 2.41) #202312102332 SMP PREEMPT_DYNAMIC Sun Dec 10 23:41:31 UTC 2023
    ```
 
+ - Apply a post-boot tweak before the shell (or before `--exec`):
+   ```shell
+   $ vng --post-init 'echo 1 > /sys/kernel/debug/tracing/tracing_on' \
+         --exec 'cat /sys/kernel/debug/tracing/tracing_on'
+   1
+   ```
+   The `--post-init` command runs once, after init is complete, with its
+   stdout/stderr on the console. A non-zero exit aborts boot.
+
  - Run with systemd as init:
    ```shell
    $ sudo vng -r --systemd --exec "systemctl status | head"

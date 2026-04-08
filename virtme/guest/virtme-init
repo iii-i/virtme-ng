@@ -533,6 +533,24 @@ setup_user_script() {
     fi
 }
 
+run_postinit_hook() {
+    local consdev=$1 ret hook_script=/run/tmp/.virtme-postinit
+
+    if ! extract_cmdline_script "virtme.postinit=" "$hook_script"; then
+        return
+    fi
+
+    log 'starting post-init hook'
+    /bin/sh "$hook_script" 0<> "/dev/$consdev" 1>&0 2>&0
+    ret=$?
+    log "post-init hook returned ${ret}"
+    rm "$hook_script"
+    if (( ret != 0 )); then
+        write_virtme_ret "$ret"
+        poweroff_and_exit "$ret"
+    fi
+}
+
 # shellcheck disable=SC2034
 get_active_console() {
     local -n consdev_ref=$1
@@ -703,6 +721,8 @@ setup_user_session() {
         log "failed to determine console"
         exec bash --login # At least try to be helpful
     fi
+
+    run_postinit_hook "$consdev"
 
     setup_user_script "$uid"
 
