@@ -4,7 +4,7 @@
 fn test_extract_user_script() {
     let input = "other=stuff virtme.exec=`SGVsbG8K` is=ignored";
     assert_eq!(
-        super::extract_user_script(input),
+        super::extract_cmdline_value(input, "virtme.exec=`"),
         Some("Hello\n".to_string())
     );
 }

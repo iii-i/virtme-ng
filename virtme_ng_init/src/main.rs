@@ -784,13 +784,17 @@ fn setup_network() -> Vec<Option<thread::JoinHandle<()>>> {
     vec
 }
 
-fn extract_user_script(virtme_script: &str) -> Option<String> {
-    let start_marker = "virtme.exec=`";
+fn extract_cmdline_value(cmdline: &str, start_marker: &str) -> Option<String> {
     let end_marker = '`';
 
-    let (_before, remaining) = virtme_script.split_once(start_marker)?;
+    let (_before, remaining) = cmdline.split_once(start_marker)?;
     let (encoded_cmd, _after) = remaining.split_once(end_marker)?;
     String::from_utf8(BASE64.decode(encoded_cmd).ok()?).ok()
+}
+
+fn read_cmdline_value(start_marker: &str) -> Option<String> {
+    let cmdline = std::fs::read_to_string("/proc/cmdline").ok()?;
+    extract_cmdline_value(&cmdline, start_marker)
 }
 
 /// Returns true if the script was run (and will poweroff), false if script I/O ports are missing.
@@ -937,12 +941,10 @@ fn run_user_script_on_console(consdev: &str, uid: u32) {
 /// Returns true if we are in script mode but could not run the script (script I/O ports missing).
 /// Caller should then run the script on the console and poweroff.
 fn setup_user_script(uid: u32) -> bool {
-    if let Ok(cmdline) = std::fs::read_to_string("/proc/cmdline") {
-        if let Some(cmd) = extract_user_script(&cmdline) {
-            create_user_script(&cmd);
-            if env::var("virtme_graphics").is_err() && !run_user_script(uid) {
-                return true; // script mode but ports missing
-            }
+    if let Some(cmd) = read_cmdline_value("virtme.exec=`") {
+        create_user_script(&cmd);
+        if env::var("virtme_graphics").is_err() && !run_user_script(uid) {
+            return true; // script mode but ports missing
         }
     }
     false
