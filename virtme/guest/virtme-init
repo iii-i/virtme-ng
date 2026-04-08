@@ -696,13 +696,13 @@ setup_user_session() {
     init_xdg_runtime_dir "$uid"
     setup_root_home
 
-    setup_user_script "$uid"
-
     get_active_console consdev
     if [[ -z $consdev ]]; then
         log "failed to determine console"
         exec bash --login # At least try to be helpful
     fi
+
+    setup_user_script "$uid"
 
     # Script mode but script I/O ports were missing; run script on console and exit.
     if [[ -n "${script_ports_missing:-}" ]]; then
