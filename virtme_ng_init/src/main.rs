@@ -864,18 +864,7 @@ fn run_user_script(uid: u32) -> bool {
                 .expect("Failed to start user script process");
 
             let ret = wait_for_child(child.id() as i32);
-
-            // Channel the return code to the host via /dev/virtme.ret
-            if let Ok(mut file) = OpenOptions::new().write(true).open("/dev/virtme.ret") {
-                // Write the value of output.status.code() to the file
-                if let Some(code) = ret {
-                    file.write_all(code.to_string().as_bytes())
-                        .expect("Failed to write to file");
-                } else {
-                    // Handle the case where the return code is None
-                    file.write_all(b"-1").expect("Failed to write to file");
-                }
-            }
+            write_virtme_ret(ret);
         }
         poweroff();
     }
@@ -884,6 +873,18 @@ fn run_user_script(uid: u32) -> bool {
 
 fn create_user_script(cmd: &str) {
     utils::create_file(USER_SCRIPT, 0o0755, cmd).expect("Failed to create virtme-script file");
+}
+
+fn write_virtme_ret(code: Option<i32>) {
+    if let Ok(mut file) = OpenOptions::new()
+        .write(true)
+        .open("/dev/virtio-ports/virtme.ret")
+    {
+        let payload = code
+            .map(|c| c.to_string())
+            .unwrap_or_else(|| "-1".to_string());
+        let _ = file.write_all(payload.as_bytes());
+    }
 }
 
 /// Run the user script with stdin/stdout/stderr on the serial console.
@@ -922,18 +923,8 @@ fn run_user_script_on_console(consdev: &str, uid: u32) {
             .expect("Failed to execute script on console");
         if let Some(code) = ret.status.code() {
             log!("script exited with code {}", code);
-            if let Ok(mut file) = OpenOptions::new()
-                .write(true)
-                .open("/dev/virtio-ports/virtme.ret")
-            {
-                let _ = file.write_all(code.to_string().as_bytes());
-            }
-        } else if let Ok(mut file) = OpenOptions::new()
-            .write(true)
-            .open("/dev/virtio-ports/virtme.ret")
-        {
-            let _ = file.write_all(b"-1");
         }
+        write_virtme_ret(ret.status.code());
     }
     poweroff();
 }
