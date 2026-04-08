@@ -468,7 +468,6 @@ run_user_script() {
 
     log 'starting script'
     if [[ -n ${virtme_user:-} ]]; then
-        chmod +x /run/tmp/.virtme-script
         setsid su -c /run/tmp/.virtme-script -- "${virtme_user}" < /dev/virtio-ports/virtme.stdin > /dev/virtio-ports/virtme.stdout 2> /dev/virtio-ports/virtme.stderr
     else
         setsid bash /run/tmp/.virtme-script < /dev/virtio-ports/virtme.stdin > /dev/virtio-ports/virtme.stdout 2> /dev/virtio-ports/virtme.stderr
@@ -494,7 +493,6 @@ run_user_script_on_console() {
 
     log 'starting script (console fallback)'
     if [[ -n ${virtme_user:-} ]]; then
-        chmod +x /run/tmp/.virtme-script
         setsid su -c /run/tmp/.virtme-script -- "${virtme_user}" 0<> "/dev/$consdev" 1>&0 2>&0
     else
         setsid bash /run/tmp/.virtme-script 0<> "/dev/$consdev" 1>&0 2>&0
@@ -508,17 +506,24 @@ run_user_script_on_console() {
     poweroff_and_exit 0
 }
 
+extract_cmdline_script() {
+    local key=$1 out_path=$2 encoded
+
+    encoded=$(sed -ne "s/.*${key}\`\([^\`]*\)\`.*/\1/p" /proc/cmdline)
+    if [[ -z ${encoded} ]]; then
+        return 1
+    fi
+    printf -- '%s\n' "$encoded" | base64 -d > "$out_path"
+    chmod +x "$out_path"
+}
+
 setup_user_script() {
     local uid=$1
 
     # Unset so we don't carry over from a previous run
     unset -v script_ports_missing
 
-    user_cmd=$(sed -ne "s/.*virtme.exec=\`\([^\`]*\)\`.*/\1/p" /proc/cmdline)
-    if [[ -n ${user_cmd} ]]; then
-        # Decode shell command (base64) and dump it to a script
-        printf -- '%s\n' "$user_cmd" | base64 -d > /run/tmp/.virtme-script
-
+    if extract_cmdline_script "virtme.exec=" /run/tmp/.virtme-script; then
         if [[ -z ${virtme_graphics:-} ]]; then
             # Start the script (returns 1 if script I/O ports are missing)
             run_user_script "$uid" || script_ports_missing=1
@@ -642,7 +647,6 @@ run_user_gui() {
     # Create a .xinitrc to start the requested graphical application.
     xinit_rc=/run/tmp/.xinitrc
     echo -e "${pre_exec_cmd}\nexec /run/tmp/.virtme-script" > ${xinit_rc}
-    chmod +x /run/tmp/.virtme-script
     if [[ -n ${virtme_user:-} ]]; then
         chown -- "${virtme_user}" ${xinit_rc}
         # Try to fix permissions on the virtual consoles, we are starting X
