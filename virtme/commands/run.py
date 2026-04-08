@@ -1784,6 +1784,14 @@ def do_it() -> int:
 
     ret_path = None
 
+    def provision_ret_path():
+        nonlocal ret_path
+        if ret_path is not None:
+            return
+        _, ret_path = tempfile.mkstemp(prefix="virtme_ret")
+        atexit.register(cleanup_script_retcode)
+        add_serial_port(f"file,id=ret,path={ret_path}", "ret", "virtme.ret")
+
     def cleanup_script_retcode():
         os.unlink(ret_path)
 
@@ -1807,7 +1815,7 @@ def do_it() -> int:
             ["-device", f"virtserialport,name={port_name},chardev={chardev_id}"]
         )
 
-    def do_script(shellcmd: str, ret_path=None, show_boot_console=False) -> None:
+    def do_script(shellcmd: str, show_boot_console=False) -> None:
         if args.graphics is None:
             if args.nvgpu is None:
                 qemuargs.extend(arch.qemu_nodisplay_args())
@@ -1894,9 +1902,6 @@ def do_it() -> int:
                     "virtme.dev_stderr",
                 )
 
-        if ret_path is not None:
-            add_serial_port(f"file,id=ret,path={ret_path}", "ret", "virtme.ret")
-
         # Scripts shouldn't reboot and shouldn't hang on panic: make sure to
         # force an exit condition if a panic happens.
         qemuargs.extend(["-no-reboot"])
@@ -1934,18 +1939,13 @@ def do_it() -> int:
         args.script_sh = args.graphics
 
     if args.script_sh is not None:
-        _, ret_path = tempfile.mkstemp(prefix="virtme_ret")
-        atexit.register(cleanup_script_retcode)
-        do_script(
-            args.script_sh, ret_path=ret_path, show_boot_console=args.show_boot_console
-        )
+        provision_ret_path()
+        do_script(args.script_sh, show_boot_console=args.show_boot_console)
 
     if args.script_exec is not None:
-        _, ret_path = tempfile.mkstemp(prefix="virtme_ret")
-        atexit.register(cleanup_script_retcode)
+        provision_ret_path()
         do_script(
             shlex.quote(args.script_exec),
-            ret_path=ret_path,
             show_boot_console=args.show_boot_console,
         )
 
